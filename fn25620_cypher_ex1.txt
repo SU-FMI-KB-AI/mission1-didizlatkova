@@ -1,0 +1,73 @@
+#Create a Record for Yourself
+CREATE (you:Person {name:"You"})
+RETURN you
+
+# I like Neo4j :)
+MATCH  (you:Person {name:"You"})
+CREATE (you)-[like:LIKE]->(neo:Database {name:"Neo4j" })
+RETURN you,like,neo
+
+# Create Your Friends
+MATCH (you:Person {name:"You"})
+FOREACH (name in ["Johan","Rajesh","Anna","Julia","Andrew"] |
+  CREATE (you)-[:FRIEND]->(:Person {name:name}))
+
+# Find Your Friends
+MATCH (you {name:"You"})-[:FRIEND]->(yourFriends)
+RETURN you, yourFriends
+
+# Create Second Degree Friends and Expertise
+MATCH (neo:Database {name:"Neo4j"})
+MATCH (anna:Person {name:"Anna"})
+CREATE (anna)-[:FRIEND]->(:Person:Expert {name:"Amanda"})-[:WORKED_WITH]->(neo)
+
+
+# Find Someone in your Network Who Can Help You Learn Neo4j
+MATCH (you {name:"You"})
+MATCH (expert)-[:WORKED_WITH]->(db:Database {name:"Neo4j"})
+MATCH path = shortestPath( (you)-[:FRIEND*..5]-(expert) )
+RETURN db,expert,path
+
+-------------------------------------------------------------
+# Show all movies
+MATCH (m:Movie)
+RETURN m;
+
+# All movies in 1993
+MATCH (m:Movie)
+WHERE m.year = 1993
+RETURN m;
+
+# All action movies
+MATCH (m:Movie)-[:IN_GENRE]-(genre)
+WHERE genre.name = "Action"
+RETURN m
+
+# Content-Based Filtering
+MATCH p=(m:Movie {title: "Net, The"})-[:ACTED_IN|:IN_GENRE|:DIRECTED*2]-()
+RETURN p LIMIT 25
+
+# Collaborative Filtering
+MATCH (m:Movie {title: "Crimson Tide"})<-[:RATED]-(u:User)-[:RATED]->(rec:Movie)
+RETURN rec.title AS recommendation, COUNT(*) AS usersWhoAlsoWatched
+ORDER BY usersWhoAlsoWatched DESC LIMIT 25
+
+# Similarity Based on Common Genres
+MATCH (m:Movie)-[:IN_GENRE]->(g:Genre)<-[:IN_GENRE]-(rec:Movie)
+WHERE m.title = "Inception"
+WITH rec, COLLECT(g.name) AS genres, COUNT(*) AS commonGenres
+RETURN rec.title, genres, commonGenres
+ORDER BY commonGenres DESC LIMIT 10;
+
+
+# What movies are most similar to Inception based on Jaccard similarity of genres?
+MATCH (m:Movie {title: "Inception"})-[:IN_GENRE]->(g:Genre)<-[:IN_GENRE]-(other:Movie)
+WITH m, other, COUNT(g) AS intersection, COLLECT(g.name) AS i
+MATCH (m)-[:IN_GENRE]->(mg:Genre)
+WITH m,other, intersection,i, COLLECT(mg.name) AS s1
+MATCH (other)-[:IN_GENRE]->(og:Genre)
+WITH m,other,intersection,i, s1, COLLECT(og.name) AS s2
+WITH m,other,intersection,s1,s2
+WITH m,other,intersection,s1+filter(x IN s2 WHERE NOT x IN s1) AS union, s1, s2
+RETURN m.title, other.title, s1,s2,((1.0*intersection)/SIZE(union)) AS jaccard ORDER BY jaccard DESC LIMIT 100
+
